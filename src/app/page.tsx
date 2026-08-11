@@ -9,8 +9,9 @@ import {
   type VideoModel,
   type TaskStatus,
   type GenerateRequest,
-  type Resolution,
+  type Quality,
   type Ratio,
+  getSizeForRatio,
 } from "@/lib/api";
 
 type Mode = "fl2va" | "ref2va";
@@ -38,9 +39,9 @@ const STATUS_TEXT: Record<TaskStatus, string> = {
   failed: "生成失败",
 };
 
-const RESOLUTIONS: { value: Resolution; label: string; desc: string }[] = [
-  { value: "768P", label: "768P", desc: "标准清晰度，生成更快" },
-  { value: "2K", label: "2K", desc: "高清画质，细节更丰富" },
+const QUALITIES: { value: Quality; label: string; desc: string }[] = [
+  { value: "standard", label: "标准", desc: "生成更快，适合预览" },
+  { value: "hd", label: "高清", desc: "画质更高，细节更丰富" },
 ];
 
 const RATIOS: { value: Ratio; label: string }[] = [
@@ -57,7 +58,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [seconds, setSeconds] = useState(5);
-  const [resolution, setResolution] = useState<Resolution>("768P");
+  const [quality, setQuality] = useState<Quality>("standard");
   const [ratio, setRatio] = useState<Ratio>("16:9");
 
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -125,14 +126,15 @@ export default function Home() {
     }
 
     try {
+      // 图生视频（有首尾帧图片）时比例由图片自动决定，使用默认 16:9 计算 size
+      const effectiveRatio: Ratio =
+        mode === "fl2va" && images.length > 0 ? "16:9" : ratio;
+
       const reqBody: GenerateRequest = {
         model: MODE_CONFIG[mode].model,
         prompt: prompt.trim(),
         seconds,
-        resolution,
-        // 图生视频（有图片时）比例由图片自动决定，不传 ratio
-        ...(mode === "fl2va" && images.length === 0 ? { ratio } : {}),
-        ...(mode === "ref2va" ? { ratio } : {}),
+        size: getSizeForRatio(effectiveRatio, quality),
         ...(images.length > 0 ? { images } : {}),
       };
 
@@ -238,26 +240,26 @@ export default function Home() {
             />
           </div>
 
-          {/* 分辨率选择 */}
+          {/* 画质选择 */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              分辨率
+              画质
             </label>
             <div className="flex gap-2">
-              {RESOLUTIONS.map((r) => (
+              {QUALITIES.map((q) => (
                 <button
-                  key={r.value}
+                  key={q.value}
                   type="button"
-                  onClick={() => setResolution(r.value)}
+                  onClick={() => setQuality(q.value)}
                   className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    resolution === r.value
+                    quality === q.value
                       ? "bg-blue-600 text-white"
                       : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                   }`}
                 >
-                  <div>{r.label}</div>
-                  <div className={`text-[10px] mt-0.5 ${resolution === r.value ? "text-blue-100" : "text-zinc-400"}`}>
-                    {r.desc}
+                  <div>{q.label}</div>
+                  <div className={`text-[10px] mt-0.5 ${quality === q.value ? "text-blue-100" : "text-zinc-400"}`}>
+                    {q.desc}
                   </div>
                 </button>
               ))}
@@ -269,9 +271,9 @@ export default function Home() {
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 画面比例
-                {mode === "fl2va" && images.length > 0 && (
-                  <span className="ml-2 text-xs text-zinc-400">（上传图片后自动适配）</span>
-                )}
+                <span className="ml-2 text-xs text-zinc-400">
+                  输出尺寸：{getSizeForRatio(ratio, quality)}
+                </span>
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {RATIOS.map((r) => (
@@ -290,7 +292,18 @@ export default function Home() {
                 ))}
               </div>
             </div>
-          ) : null}
+          ) : (
+            /* 图生视频有图片时显示当前画质对应的尺寸 */
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                画面比例
+                <span className="ml-2 text-xs text-zinc-400">（上传图片后自动适配）</span>
+              </label>
+              <p className="text-xs text-zinc-400">
+                当前画质输出尺寸：{getSizeForRatio("16:9", quality)}
+              </p>
+            </div>
+          )}
 
           {/* 时长选择 */}
           <div>

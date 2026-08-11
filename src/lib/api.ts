@@ -4,17 +4,43 @@ export type VideoModel = "minimax/minimax-h3-fl2va" | "minimax/minimax-h3-ref2va
 
 export type TaskStatus = "queued" | "in_progress" | "completed" | "failed";
 
-export type Resolution = "768P" | "2K";
+export type Quality = "standard" | "hd";
 
 export type Ratio = "16:9" | "9:16" | "4:3" | "3:4" | "1:1" | "21:9";
+
+/**
+ * 根据画面比例和质量等级计算 size 参数（WIDTHxHEIGHT）。
+ * 中转 API 要求宽高均能被 32 整除，总像素 ≤ 1344x768。
+ */
+export const SIZE_MAP: Record<Quality, Record<Ratio, string>> = {
+  standard: {
+    "16:9": "1024x576",
+    "9:16": "576x1024",
+    "4:3": "768x576",
+    "3:4": "576x768",
+    "1:1": "768x768",
+    "21:9": "1024x448",
+  },
+  hd: {
+    "16:9": "1344x768",
+    "9:16": "768x1344",
+    "4:3": "1024x768",
+    "3:4": "768x1024",
+    "1:1": "960x960",
+    "21:9": "1344x576",
+  },
+};
+
+export function getSizeForRatio(ratio: Ratio, quality: Quality): string {
+  return SIZE_MAP[quality][ratio];
+}
 
 export interface GenerateRequest {
   model: VideoModel;
   prompt: string;
   seconds: number;
   images?: string[];
-  resolution?: Resolution;
-  ratio?: Ratio;
+  size?: string;
 }
 
 export interface GenerateResponse {

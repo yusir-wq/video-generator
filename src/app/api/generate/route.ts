@@ -4,8 +4,9 @@ const API_KEY = process.env.MINIMAX_API_KEY;
 const BASE_URL = process.env.MINIMAX_BASE_URL || "https://mzsjai.com/v1";
 
 /**
- * 将 base64 Data URL 图片上传到 0x0.st 图床，返回 HTTPS URL。
+ * 将 base64 Data URL 图片上传到图床，返回 HTTPS URL。
  * MiniMax API 要求图片必须是 HTTPS URL，不支持 data URL。
+ * 优先使用 uguu.se，失败则回退到 tmpfiles.org。
  */
 async function uploadImageToHost(dataUrl: string): Promise<string> {
   const match = dataUrl.match(/^data:(image\/(\w+));base64,(.+)$/);
@@ -16,26 +17,56 @@ async function uploadImageToHost(dataUrl: string): Promise<string> {
   const mimeType = match[1];
   const ext = match[2] === "jpeg" ? "jpg" : match[2];
   const buffer = Buffer.from(match[3], "base64");
-
-  const formData = new FormData();
   const blob = new Blob([buffer], { type: mimeType });
-  formData.append("file", blob, `image.${ext}`);
 
-  const res = await fetch("https://0x0.st", {
-    method: "POST",
-    body: formData,
-  });
+  // 尝试 uguu.se
+  try {
+    const formData = new FormData();
+    formData.append("files[]", blob, `image.${ext}`);
 
-  if (!res.ok) {
-    throw new Error(`图床上传失败 (HTTP ${res.status})`);
+    const res = await fetch("https://uguu.se/upload.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.files?.[0]?.url) {
+        return data.files[0].url as string;
+      }
+    }
+  } catch {
+    // uguu.se 失败，尝试下一个
   }
 
-  const url = (await res.text()).trim();
-  if (!url.startsWith("https://")) {
-    throw new Error(`图床上传返回异常: ${url}`);
+  // 回退到 tmpfiles.org
+  try {
+    const formData = new FormData();
+    formData.append("file", blob, `image.${ext}`);
+
+    const res = await fetch("https://tmpfiles.org/api/v1/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === "success" && data.data?.url) {
+        // tmpfiles.org 返回页面 URL，需转换为直接图片 URL
+        // https://tmpfiles.org/xxxxx/file.png -> https://tmpfiles.org/d/xxxxx/file.png
+        const pageUrl = data.data.url as string;
+        const directUrl = pageUrl.replace(
+          "tmpfiles.org/",
+          "tmpfiles.org/d/"
+        );
+        return directUrl;
+      }
+    }
+  } catch {
+    // tmpfiles.org 也失败
   }
 
-  return url;
+  throw new Error("所有图床服务均不可用，请稍后重试");
 }
 
 export async function POST(request: NextRequest) {

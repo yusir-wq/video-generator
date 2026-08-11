@@ -9,6 +9,8 @@ import {
   type VideoModel,
   type TaskStatus,
   type GenerateRequest,
+  type Resolution,
+  type Ratio,
 } from "@/lib/api";
 
 type Mode = "fl2va" | "ref2va";
@@ -36,11 +38,27 @@ const STATUS_TEXT: Record<TaskStatus, string> = {
   failed: "生成失败",
 };
 
+const RESOLUTIONS: { value: Resolution; label: string; desc: string }[] = [
+  { value: "768P", label: "768P", desc: "标准清晰度，生成更快" },
+  { value: "2K", label: "2K", desc: "高清画质，细节更丰富" },
+];
+
+const RATIOS: { value: Ratio; label: string }[] = [
+  { value: "16:9", label: "16:9 横屏" },
+  { value: "9:16", label: "9:16 竖屏" },
+  { value: "4:3", label: "4:3" },
+  { value: "3:4", label: "3:4" },
+  { value: "1:1", label: "1:1 正方" },
+  { value: "21:9", label: "21:9 超宽" },
+];
+
 export default function Home() {
   const [mode, setMode] = useState<Mode>("fl2va");
   const [prompt, setPrompt] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [seconds, setSeconds] = useState(5);
+  const [resolution, setResolution] = useState<Resolution>("768P");
+  const [ratio, setRatio] = useState<Ratio>("16:9");
 
   const [taskId, setTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<TaskStatus | null>(null);
@@ -111,6 +129,10 @@ export default function Home() {
         model: MODE_CONFIG[mode].model,
         prompt: prompt.trim(),
         seconds,
+        resolution,
+        // 图生视频（有图片时）比例由图片自动决定，不传 ratio
+        ...(mode === "fl2va" && images.length === 0 ? { ratio } : {}),
+        ...(mode === "ref2va" ? { ratio } : {}),
         ...(images.length > 0 ? { images } : {}),
       };
 
@@ -216,6 +238,60 @@ export default function Home() {
             />
           </div>
 
+          {/* 分辨率选择 */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              分辨率
+            </label>
+            <div className="flex gap-2">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  key={r.value}
+                  type="button"
+                  onClick={() => setResolution(r.value)}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    resolution === r.value
+                      ? "bg-blue-600 text-white"
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  }`}
+                >
+                  <div>{r.label}</div>
+                  <div className={`text-[10px] mt-0.5 ${resolution === r.value ? "text-blue-100" : "text-zinc-400"}`}>
+                    {r.desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 画面比例选择（文生视频无图片时显示，或参考图生视频时显示） */}
+          {(mode === "fl2va" && images.length === 0) || mode === "ref2va" ? (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                画面比例
+                {mode === "fl2va" && images.length > 0 && (
+                  <span className="ml-2 text-xs text-zinc-400">（上传图片后自动适配）</span>
+                )}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {RATIOS.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setRatio(r.value)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      ratio === r.value
+                        ? "bg-blue-600 text-white"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* 时长选择 */}
           <div>
             <label className="flex items-center justify-between text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -226,14 +302,14 @@ export default function Home() {
             </label>
             <input
               type="range"
-              min={1}
+              min={4}
               max={15}
               value={seconds}
               onChange={(e) => setSeconds(Number(e.target.value))}
               className="w-full accent-blue-600"
             />
             <div className="flex justify-between text-xs text-zinc-400 mt-1">
-              <span>1s</span>
+              <span>4s</span>
               <span>15s</span>
             </div>
           </div>

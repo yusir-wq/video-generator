@@ -4,11 +4,17 @@ export type VideoModel = "minimax/minimax-h3-fl2va" | "minimax/minimax-h3-ref2va
 
 export type TaskStatus = "queued" | "in_progress" | "completed" | "failed";
 
+export type Resolution = "768P" | "2K";
+
+export type Ratio = "16:9" | "9:16" | "4:3" | "3:4" | "1:1" | "21:9";
+
 export interface GenerateRequest {
   model: VideoModel;
   prompt: string;
   seconds: number;
   images?: string[];
+  resolution?: Resolution;
+  ratio?: Ratio;
 }
 
 export interface GenerateResponse {
